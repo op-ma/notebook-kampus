@@ -1,21 +1,16 @@
 {
-  "name": "CampusNotes App",
+  "name": "CampusNotes Pro v5.3",
   "short_name": "CampusNotes",
-  "description": "Aplikasi catatan lengkap untuk mahasiswa (Modul, Jadwal, Diskusi, Tugas)",
-  "start_url": "./index.html",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#e0e7ff",
-  "theme_color": "#4f46e5",
+  "background_color": "#f8fafc",
+  "theme_color": "#6366f1",
   "icons": [
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }
