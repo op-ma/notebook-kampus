@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CampusNotes Pro v5.3</title>
+    <title>CampusNotes Pro v5.4</title>
     <meta name="theme-color" content="#6366f1">
     
     <link rel="manifest" href="manifest.json">
@@ -99,7 +99,7 @@
                             ref={editorRef} contentEditable="true"
                             onInput={(e) => onChange(name, e.currentTarget.innerHTML)}
                             className="rich-editor p-4 text-sm text-slate-700 leading-relaxed"
-                            placeholder="Ketik di sini... (URL akan otomatis menjadi link saat disimpan)"
+                            placeholder="Ketik di sini... (URL otomatis menjadi link)"
                         ></div>
                     </div>
                 </div>
@@ -110,6 +110,9 @@
             const [activeTab, setActiveTab] = useState('tambah');
             const [notes, setNotes] = useState([]);
             const [editingId, setEditingId] = useState(null);
+            
+            // FITUR BARU: State untuk nilai pencarian
+            const [searchTerm, setSearchTerm] = useState('');
 
             const [formData, setFormData] = useState({
                 id: '', namaMK: '', judulModul: '', namaKB: '',
@@ -121,8 +124,12 @@
             useEffect(() => {
                 const saved = localStorage.getItem('campus_notes_v5');
                 if (saved) setNotes(JSON.parse(saved));
+            }, []);
+
+            // Menggambar ulang icon Lucide ketika tab atau kata kunci pencarian berubah
+            useEffect(() => {
                 setTimeout(() => lucide.createIcons(), 300);
-            }, [activeTab]);
+            }, [activeTab, searchTerm, notes]);
 
             const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value});
             const handleRich = (name, html) => setFormData({...formData, [name]: html});
@@ -199,7 +206,6 @@
                     updated = notes.map(n => n.id === editingId ? {...formData, id: editingId} : n);
                     setEditingId(null);
                 } else {
-                    // Catatan baru tetap ditambahkan, pengurutan dilakukan saat render
                     updated = [{...formData, id: Date.now()}, ...notes];
                 }
                 
@@ -237,24 +243,36 @@
                 }
             };
 
-            // PENGURUTAN: Dari yang paling pertama di input
+            // PENGURUTAN & PENCARIAN
             const groupedData = useMemo(() => {
-                // Urutkan berdasarkan id terkecil (terlama) ke terbesar (terbaru)
+                // 1. Urutkan berdasarkan id terkecil (terlama) ke terbesar (terbaru)
                 const sortedNotes = [...notes].sort((a, b) => a.id - b.id);
                 
-                return sortedNotes.reduce((acc, note) => {
-                    const key = `${note.namaMK} | ${note.judulModul}`;
+                // 2. Filter data berdasarkan kotak pencarian (Mata Kuliah, Modul, atau KB)
+                const filteredNotes = sortedNotes.filter(note => {
+                    if (!searchTerm) return true; // Jika pencarian kosong, tampilkan semua
+                    const searchLower = searchTerm.toLowerCase();
+                    const matchMK = (note.namaMK || '').toLowerCase().includes(searchLower);
+                    const matchModul = (note.judulModul || '').toLowerCase().includes(searchLower);
+                    const matchKB = (note.namaKB || '').toLowerCase().includes(searchLower);
+                    
+                    return matchMK || matchModul || matchKB;
+                });
+                
+                // 3. Kelompokkan data yang sudah di-filter
+                return filteredNotes.reduce((acc, note) => {
+                    const key = `${note.namaMK || 'Tanpa Mata Kuliah'} | ${note.judulModul || 'Tanpa Modul'}`;
                     if (!acc[key]) acc[key] = [];
                     acc[key].push(note);
                     return acc;
                 }, {});
-            }, [notes]);
+            }, [notes, searchTerm]);
 
             return (
                 <div className="max-w-2xl mx-auto px-4 py-8">
                     <header className="mb-8 text-center">
                         <h1 className="text-4xl font-black text-indigo-600 tracking-tighter italic">CAMPUS<span className="text-slate-900 font-black">NOTES</span></h1>
-                        <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.4em] mt-2">Academic Workflow System v5.3</p>
+                        <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.4em] mt-2">Academic Workflow System v5.4</p>
                         
                         <div className="flex justify-center gap-6 mt-6">
                             <button type="button" onClick={handleBackup} className="text-[10px] font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1.5 transition-colors bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-100">
@@ -268,7 +286,7 @@
                     </header>
 
                     <nav className="flex sticky top-4 z-50 bg-white/90 backdrop-blur-md p-1.5 rounded-[2rem] shadow-xl border border-white mb-10">
-                        <button onClick={() => setActiveTab('tambah')} className={`flex-1 py-4 text-xs font-black uppercase rounded-[1.5rem] transition-all ${activeTab === 'tambah' ? 'tab-active' : 'text-slate-400 hover:text-indigo-500'}`}>Input</button>
+                        <button onClick={() => {setActiveTab('tambah'); setSearchTerm('');}} className={`flex-1 py-4 text-xs font-black uppercase rounded-[1.5rem] transition-all ${activeTab === 'tambah' ? 'tab-active' : 'text-slate-400 hover:text-indigo-500'}`}>Input</button>
                         <button onClick={() => setActiveTab('riwayat')} className={`flex-1 py-4 text-xs font-black uppercase rounded-[1.5rem] transition-all ${activeTab === 'riwayat' ? 'tab-active' : 'text-slate-400 hover:text-indigo-500'}`}>Riwayat ({notes.length})</button>
                     </nav>
 
@@ -337,15 +355,39 @@
                             </button>
                         </form>
                     ) : (
-                        <div className="space-y-12 animate-fadeIn">
+                        <div className="space-y-8 animate-fadeIn">
+                            {/* SEARCH BAR UNTUK RIWAYAT */}
+                            {notes.length > 0 && (
+                                <div className="relative z-10">
+                                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                                        <i data-lucide="search" className="w-5 h-5 text-slate-400"></i>
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Cari Mata Kuliah, Modul, atau KB..." 
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-12 pr-12 py-5 rounded-[2rem] border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all text-sm bg-white/90 backdrop-blur-sm shadow-sm font-medium text-slate-700"
+                                    />
+                                    {searchTerm && (
+                                        <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-5 flex items-center text-slate-400 hover:text-rose-500 transition-colors">
+                                            <i data-lucide="x" className="w-5 h-5"></i>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
                             {Object.keys(groupedData).length === 0 ? (
-                                <div className="text-center py-20 text-slate-300 font-bold italic">Belum ada riwayat.</div>
+                                <div className="text-center py-20">
+                                    <i data-lucide={notes.length === 0 ? "inbox" : "search-x"} className="w-16 h-16 text-slate-200 mx-auto mb-4"></i>
+                                    <p className="text-slate-400 font-bold italic">{notes.length === 0 ? "Belum ada riwayat catatan." : "Catatan tidak ditemukan."}</p>
+                                </div>
                             ) : (
                                 Object.keys(groupedData).map(key => (
-                                    <div key={key} className="relative">
-                                        <div className="mb-4 pl-2">
+                                    <div key={key} className="relative pt-4">
+                                        <div className="mb-6 pl-2">
                                             <h2 className="text-2xl font-black text-slate-900 leading-tight">{key.split(' | ')[0]}</h2>
-                                            <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{key.split(' | ')[1]}</p>
+                                            <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mt-1">{key.split(' | ')[1]}</p>
                                         </div>
 
                                         <div className="space-y-6">
@@ -467,7 +509,6 @@
 
         window.addEventListener('click', () => setTimeout(() => lucide.createIcons(), 50));
         
-        // Mendaftarkan Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
