@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CampusNotes Pro v5.3</title>
+    <meta name="theme-color" content="#6366f1">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; color: #1e293b; }
+        .glass-card { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); border: 1px solid #e2e8f0; }
+        .rich-editor { min-height: 120px; outline: none; }
+        .rich-editor a { color: #6366f1; text-decoration: underline; font-weight: 600; cursor: pointer; }
+        .rich-editor ul { list-style-type: disc; padding-left: 25px; margin: 10px 0; }
+        .rich-editor ol { list-style-type: decimal; padding-left: 25px; margin: 10px 0; }
+        [contenteditable]:empty:before { content: attr(placeholder); color: #cbd5e1; cursor: text; }
+        .tab-active { background: #6366f1; color: white; box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39); }
+        input[type="datetime-local"], input[type="file"] { cursor: pointer; }
+    </style>
+</head>
+<body class="pb-24">
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- FITUR BARU: COPY TO CLIPBOARD ---
+        const copyToClipboard = (htmlContent) => {
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = htmlContent;
+            // Mengambil teks murni tanpa tag HTML (seperti <b>, <ul>, dll)
+            const plainText = tempDiv.textContent || tempDiv.innerText || "";
+            navigator.clipboard.writeText(plainText).then(() => {
+                alert("Teks berhasil disalin ke clipboard!");
+            }).catch(err => {
+                alert("Gagal menyalin teks.");
+                console.error(err);
+            });
+        };
+
+        // --- FITUR BARU: AUTO LINKIFY ---
+        const linkify = (text) => {
+            if (!text) return "";
+            // Regex untuk mendeteksi URL (mengabaikan yang sudah berada di dalam tag href)
+            const urlRegex = /(?<!href=["'])(https?:\/\/[^\s<]+)/g;
+            return text.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-indigo-600 font-bold underline hover:text-indigo-800 transition-colors">$1</a>');
+        };
+
+        const InputField = ({ label, type = "text", name, value, onChange, placeholder, accept }) => (
+            <div className="flex flex-col mb-4 w-full">
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1">{label}</label>
+                <input 
+                    type={type} name={name} value={value} onChange={onChange} placeholder={placeholder} accept={accept}
+                    className="w-full p-4 rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all text-sm bg-white"
+                />
+            </div>
+        );
+
+        const RichEditor = ({ label, name, value, onChange }) => {
+            const editorRef = useRef(null);
+            useEffect(() => {
+                if (editorRef.current && editorRef.current.innerHTML !== value) {
+                    editorRef.current.innerHTML = value || '';
+                }
+            }, [value]);
+
+            const exec = (cmd, arg = null) => {
+                document.execCommand(cmd, false, arg);
+                onChange(name, editorRef.current.innerHTML);
+            };
+
+            const insertLink = () => {
+                const url = prompt("Masukkan URL (dengan http:// atau https://):");
+                if (url) exec('createLink', url);
+            };
+
+            return (
+                <div className="mb-6">
+                    <div className="flex justify-between items-center mb-1 ml-1">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">{label}</label>
+                        {/* Tombol Copy di Editor (Opsional tapi membantu saat input) */}
+                        {value && <button type="button" onClick={() => copyToClipboard(value)} className="text-[9px] text-indigo-500 hover:text-indigo-700 font-bold flex items-center gap-1"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>}
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm focus-within:ring-4 focus-within:ring-indigo-50">
+                        <div className="flex gap-2 p-2 bg-slate-50 border-b border-slate-100">
+                            <button type="button" onClick={() => exec('insertUnorderedList')} className="p-2 hover:bg-white rounded-lg border text-slate-600" title="Bullet List"><i data-lucide="list" className="w-4 h-4"></i></button>
+                            <button type="button" onClick={() => exec('insertOrderedList')} className="p-2 hover:bg-white rounded-lg border text-slate-600" title="Number List"><i data-lucide="list-ordered" className="w-4 h-4"></i></button>
+                            <button type="button" onClick={() => exec('bold')} className="p-2 hover:bg-white rounded-lg border text-slate-600" title="Bold"><i data-lucide="bold" className="w-4 h-4"></i></button>
+                            <div className="w-px bg-slate-200 mx-1 my-1"></div>
+                            {/* Tombol Link Manual */}
+                            <button type="button" onClick={insertLink} className="p-2 hover:bg-white rounded-lg border text-indigo-500 border-indigo-100 hover:border-indigo-300" title="Masukkan Link"><i data-lucide="link" className="w-4 h-4"></i></button>
+                        </div>
+                        <div 
+                            ref={editorRef} contentEditable="true"
+                            onInput={(e) => onChange(name, e.currentTarget.innerHTML)}
+                            className="rich-editor p-4 text-sm text-slate-700 leading-relaxed"
+                            placeholder="Ketik di sini... (URL akan otomatis menjadi link saat disimpan)"
+                        ></div>
+                    </div>
+                </div>
+            );
+        };
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('tambah');
+            const [notes, setNotes] = useState([]);
+            const [editingId, setEditingId] = useState(null);
+
+            const [formData, setFormData] = useState({
+                id: '', namaMK: '', judulModul: '', namaKB: '',
+                jadwalDiskusi: '', deadlineDiskusi: '', jadwalTugas: '', deadlineTugas: '', jadwalAbsen: '',
+                rangkuman: '', catatan: '', soalDiskusi: '', jawabDiskusi: '', soalTugas: '', jawabTugas: '',
+                attachments: [] 
+            });
+
+            useEffect(() => {
+                const saved = localStorage.getItem('campus_notes_v5');
+                if (saved) setNotes(JSON.parse(saved));
+                setTimeout(() => lucide.createIcons(), 300);
+            }, [activeTab]);
+
+            const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value});
+            const handleRich = (name, html) => setFormData({...formData, [name]: html});
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('Ukuran file terlalu besar! Maksimal 2MB untuk menjaga kapasitas penyimpanan browser.');
+                    e.target.value = null;
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const newAttachment = {
+                        id: Date.now(), name: file.name, type: file.type, data: event.target.result 
+                    };
+                    setFormData(prev => ({
+                        ...prev, attachments: [...(prev.attachments || []), newAttachment]
+                    }));
+                };
+                reader.readAsDataURL(file);
+                e.target.value = null;
+            };
+
+            const removeAttachment = (id) => {
+                setFormData(prev => ({
+                    ...prev, attachments: prev.attachments.filter(a => a.id !== id)
+                }));
+            };
+
+            const handleBackup = () => {
+                const dataStr = localStorage.getItem('campus_notes_v5');
+                if (!dataStr || dataStr === "[]") return alert('Tidak ada data untuk dibackup!');
+                const blob = new Blob([dataStr], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Backup_CampusNotes_${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const handleRestore = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const parsed = JSON.parse(event.target.result);
+                        if (Array.isArray(parsed)) {
+                            if(confirm(`Ditemukan ${parsed.length} catatan dalam file backup. Tindakan ini akan menimpa data saat ini. Lanjutkan?`)) {
+                                setNotes(parsed);
+                                localStorage.setItem('campus_notes_v5', JSON.stringify(parsed));
+                                alert('Data berhasil direstore!');
+                            }
+                        } else {
+                            alert('Format file JSON tidak valid!');
+                        }
+                    } catch (err) {
+                        alert('Gagal membaca file JSON!');
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = null;
+            };
+
+            const saveAction = (e) => {
+                e.preventDefault();
+                let updated;
+                if (editingId) {
+                    updated = notes.map(n => n.id === editingId ? {...formData, id: editingId} : n);
+                    setEditingId(null);
+                } else {
+                    updated = [{...formData, id: Date.now()}, ...notes];
+                }
+                
+                try {
+                    localStorage.setItem('campus_notes_v5', JSON.stringify(updated));
+                    setNotes(updated);
+                    alert('Berhasil disimpan!');
+                    
+                    setFormData(prev => ({
+                        ...prev, id: '', namaKB: '', rangkuman: '', catatan: '', 
+                        soalDiskusi: '', jawabDiskusi: '', soalTugas: '', jawabTugas: '',
+                        jadwalDiskusi: '', deadlineDiskusi: '', jadwalTugas: '', deadlineTugas: '', jadwalAbsen: '',
+                        attachments: []
+                    }));
+                    setActiveTab('riwayat');
+                } catch (e) {
+                    if(e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                        alert('Gagal menyimpan! Kapasitas penyimpanan browser penuh. Hapus beberapa catatan atau file lampiran yang tidak perlu.');
+                    }
+                }
+            };
+
+            const startEdit = (note) => {
+                setFormData({ ...note, attachments: note.attachments || [] });
+                setEditingId(note.id);
+                setActiveTab('tambah');
+                window.scrollTo(0, 0);
+            };
+
+            const deleteNote = (id) => {
+                if(confirm('Hapus catatan ini?')) {
+                    const filtered = notes.filter(n => n.id !== id);
+                    setNotes(filtered);
+                    localStorage.setItem('campus_notes_v5', JSON.stringify(filtered));
+                }
+            };
+
+            const groupedData = useMemo(() => {
+                return notes.reduce((acc, note) => {
+                    const key = `${note.namaMK} | ${note.judulModul}`;
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(note);
+                    return acc;
+                }, {});
+            }, [notes]);
+
+            return (
+                <div className="max-w-2xl mx-auto px-4 py-8">
+                    <header className="mb-8 text-center">
+                        <h1 className="text-4xl font-black text-indigo-600 tracking-tighter italic">CAMPUS<span className="text-slate-900 font-black">NOTES</span></h1>
+                        <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.4em] mt-2">Academic Workflow System v5.3</p>
+                        
+                        <div className="flex justify-center gap-6 mt-6">
+                            <button type="button" onClick={handleBackup} className="text-[10px] font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1.5 transition-colors bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-100">
+                                <i data-lucide="download-cloud" className="w-3.5 h-3.5"></i> Backup Data
+                            </button>
+                            <label className="text-[10px] font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1.5 cursor-pointer transition-colors bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-100">
+                                <i data-lucide="upload-cloud" className="w-3.5 h-3.5"></i> Restore Data
+                                <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+                            </label>
+                        </div>
+                    </header>
+
+                    <nav className="flex sticky top-4 z-50 bg-white/90 backdrop-blur-md p-1.5 rounded-[2rem] shadow-xl border border-white mb-10">
+                        <button onClick={() => setActiveTab('tambah')} className={`flex-1 py-4 text-xs font-black uppercase rounded-[1.5rem] transition-all ${activeTab === 'tambah' ? 'tab-active' : 'text-slate-400 hover:text-indigo-500'}`}>Input</button>
+                        <button onClick={() => setActiveTab('riwayat')} className={`flex-1 py-4 text-xs font-black uppercase rounded-[1.5rem] transition-all ${activeTab === 'riwayat' ? 'tab-active' : 'text-slate-400 hover:text-indigo-500'}`}>Riwayat ({notes.length})</button>
+                    </nav>
+
+                    {activeTab === 'tambah' ? (
+                        <form onSubmit={saveAction} className="space-y-8 animate-fadeIn">
+                            <div className="glass-card p-6 rounded-[2.5rem] shadow-sm">
+                                <div className="flex items-center mb-6"><div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white mr-4 shadow-lg shadow-indigo-100"><i data-lucide="folder"></i></div><h2 className="font-extrabold text-slate-800">Mata Kuliah & Modul</h2></div>
+                                <InputField label="Nama Mata Kuliah" name="namaMK" value={formData.namaMK} onChange={handleChange} placeholder="Contoh: Administrasi Perkantoran" />
+                                <InputField label="Judul Modul" name="judulModul" value={formData.judulModul} onChange={handleChange} placeholder="Contoh: Modul 5 - Manajemen Data" />
+                            </div>
+
+                            <div className="glass-card p-6 rounded-[2.5rem] shadow-sm border-t-4 border-indigo-500">
+                                <div className="flex items-center mb-6"><div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white mr-4 shadow-lg shadow-emerald-100"><i data-lucide="book-open"></i></div><h2 className="font-extrabold text-slate-800">Kegiatan Belajar (KB)</h2></div>
+                                <InputField label="Nama KB" name="namaKB" value={formData.namaKB} onChange={handleChange} placeholder="Contoh: KB 2 - Input Data Digital" />
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 mt-6">
+                                    <InputField label="Jadwal Diskusi" type="datetime-local" name="jadwalDiskusi" value={formData.jadwalDiskusi} onChange={handleChange} />
+                                    <InputField label="Deadline Diskusi" type="datetime-local" name="deadlineDiskusi" value={formData.deadlineDiskusi} onChange={handleChange} />
+                                    <InputField label="Jadwal Tugas" type="datetime-local" name="jadwalTugas" value={formData.jadwalTugas} onChange={handleChange} />
+                                    <InputField label="Deadline Tugas" type="datetime-local" name="deadlineTugas" value={formData.deadlineTugas} onChange={handleChange} />
+                                    <div className="md:col-span-2"><InputField label="Jadwal Input Absen" type="datetime-local" name="jadwalAbsen" value={formData.jadwalAbsen} onChange={handleChange} /></div>
+                                </div>
+                            </div>
+
+                            <div className="glass-card p-6 rounded-[2.5rem] shadow-sm">
+                                <div className="flex items-center mb-6"><div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white mr-4 shadow-lg shadow-amber-100"><i data-lucide="edit-3"></i></div><h2 className="font-extrabold text-slate-800">Catatan & Evaluasi</h2></div>
+                                
+                                <RichEditor label="Rangkuman KB" name="rangkuman" value={formData.rangkuman} onChange={handleRich} />
+                                
+                                <div className="h-px bg-slate-200 my-8"></div>
+                                <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><i data-lucide="message-circle" className="w-4 h-4 text-indigo-500"></i> Sesi Diskusi</h3>
+                                <RichEditor label="Soal Diskusi" name="soalDiskusi" value={formData.soalDiskusi} onChange={handleRich} />
+                                <RichEditor label="Jawaban Diskusi" name="jawabDiskusi" value={formData.jawabDiskusi} onChange={handleRich} />
+
+                                <div className="h-px bg-slate-200 my-8"></div>
+                                <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><i data-lucide="file-text" className="w-4 h-4 text-rose-500"></i> Sesi Tugas</h3>
+                                <RichEditor label="Soal Tugas" name="soalTugas" value={formData.soalTugas} onChange={handleRich} />
+                                <RichEditor label="Jawaban Tugas" name="jawabTugas" value={formData.jawabTugas} onChange={handleRich} />
+
+                                <div className="h-px bg-slate-200 my-8"></div>
+                                <RichEditor label="Catatan Penting Tambahan" name="catatan" value={formData.catatan} onChange={handleRich} />
+
+                                <div className="mt-8 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><i data-lucide="paperclip" className="w-4 h-4"></i> Lampiran File (Max 2MB)</label>
+                                    <input 
+                                        type="file" 
+                                        onChange={handleFileUpload} 
+                                        className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                    />
+                                    
+                                    {formData.attachments && formData.attachments.length > 0 && (
+                                        <div className="mt-4 space-y-2">
+                                            {formData.attachments.map(file => (
+                                                <div key={file.id} className="flex justify-between items-center bg-white p-2 px-3 rounded-lg border border-slate-200 text-sm shadow-sm">
+                                                    <span className="truncate max-w-[200px] text-slate-600 font-medium">{file.name}</span>
+                                                    <button type="button" onClick={() => removeAttachment(file.id)} className="text-rose-400 hover:text-rose-600 p-1"><i data-lucide="x" className="w-4 h-4"></i></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-2xl active:scale-[0.98] transition-all">
+                                {editingId ? 'Simpan Perubahan' : 'Simpan'}
+                            </button>
+                        </form>
+                    ) : (
+                        <div className="space-y-12 animate-fadeIn">
+                            {Object.keys(groupedData).length === 0 ? (
+                                <div className="text-center py-20 text-slate-300 font-bold italic">Belum ada riwayat.</div>
+                            ) : (
+                                Object.keys(groupedData).map(key => (
+                                    <div key={key} className="relative">
+                                        <div className="mb-4 pl-2">
+                                            <h2 className="text-2xl font-black text-slate-900 leading-tight">{key.split(' | ')[0]}</h2>
+                                            <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{key.split(' | ')[1]}</p>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            {groupedData[key].map(note => (
+                                                <div key={note.id} className="glass-card p-6 rounded-[2rem] border-l-[10px] border-indigo-600 shadow-xl shadow-indigo-100/20">
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <span className="px-4 py-1.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded-full border border-indigo-100">{note.namaKB || 'KB Tanpa Judul'}</span>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => startEdit(note)} className="p-2 bg-slate-50 text-slate-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all"><i data-lucide="edit" className="w-4 h-4"></i></button>
+                                                            <button onClick={() => deleteNote(note.id)} className="p-2 bg-rose-50 text-rose-400 hover:bg-rose-600 hover:text-white rounded-xl transition-all"><i data-lucide="trash-2" className="w-4 h-4"></i></button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-3 mb-6">
+                                                        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                                                            <p className="text-[8px] font-black text-blue-400 uppercase tracking-wider mb-1">Jadwal Diskusi</p>
+                                                            <p className="text-[10px] font-bold text-blue-800">{note.jadwalDiskusi?.replace('T',' ') || '-'}</p>
+                                                        </div>
+                                                        <div className="bg-purple-50/50 p-4 rounded-2xl border border-purple-100">
+                                                            <p className="text-[8px] font-black text-purple-400 uppercase tracking-wider mb-1">DL Diskusi</p>
+                                                            <p className="text-[10px] font-bold text-purple-800">{note.deadlineDiskusi?.replace('T',' ') || '-'}</p>
+                                                        </div>
+                                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1">Jadwal Tugas</p>
+                                                            <p className="text-[10px] font-bold text-slate-800">{note.jadwalTugas?.replace('T',' ') || '-'}</p>
+                                                        </div>
+                                                        <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+                                                            <p className="text-[8px] font-black text-rose-400 uppercase tracking-wider mb-1">DL Tugas</p>
+                                                            <p className="text-[10px] font-bold text-rose-800">{note.deadlineTugas?.replace('T',' ') || '-'}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <details className="group">
+                                                        <summary className="list-none cursor-pointer text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 hover:gap-3 transition-all">
+                                                            <i data-lucide="arrow-right" className="w-3 h-3 group-open:rotate-90 transition-transform"></i> Lihat Catatan Lengkap
+                                                        </summary>
+                                                        <div className="mt-6 pt-6 border-t border-dashed border-slate-200 space-y-6">
+                                                            
+                                                            {/* RANGKUMAN + COPY */}
+                                                            {note.rangkuman && <div>
+                                                                <div className="flex justify-between items-center mb-2">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase">Rangkuman:</label>
+                                                                    <button onClick={() => copyToClipboard(note.rangkuman)} className="text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>
+                                                                </div>
+                                                                <div className="text-sm mt-2 text-slate-700 bg-slate-50 p-4 rounded-xl" dangerouslySetInnerHTML={{__html: linkify(note.rangkuman)}}></div>
+                                                            </div>}
+                                                            
+                                                            {/* DISKUSI + COPY */}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                                {note.soalDiskusi && <div>
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <label className="text-[9px] font-black text-indigo-400 uppercase">Soal Diskusi:</label>
+                                                                        <button onClick={() => copyToClipboard(note.soalDiskusi)} className="text-indigo-400 hover:text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>
+                                                                    </div>
+                                                                    <div className="text-sm mt-2 text-slate-700" dangerouslySetInnerHTML={{__html: linkify(note.soalDiskusi)}}></div>
+                                                                </div>}
+                                                                
+                                                                {note.jawabDiskusi && <div>
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <label className="text-[9px] font-black text-indigo-400 uppercase">Jawaban Diskusi:</label>
+                                                                        <button onClick={() => copyToClipboard(note.jawabDiskusi)} className="text-indigo-400 hover:text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>
+                                                                    </div>
+                                                                    <div className="text-sm mt-2 text-slate-700" dangerouslySetInnerHTML={{__html: linkify(note.jawabDiskusi)}}></div>
+                                                                </div>}
+                                                            </div>
+
+                                                            {/* TUGAS + COPY */}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                                                                {note.soalTugas && <div>
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <label className="text-[9px] font-black text-rose-400 uppercase">Soal Tugas:</label>
+                                                                        <button onClick={() => copyToClipboard(note.soalTugas)} className="text-rose-400 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>
+                                                                    </div>
+                                                                    <div className="text-sm mt-2 text-slate-700" dangerouslySetInnerHTML={{__html: linkify(note.soalTugas)}}></div>
+                                                                </div>}
+                                                                
+                                                                {note.jawabTugas && <div>
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <label className="text-[9px] font-black text-rose-400 uppercase">Jawaban Tugas:</label>
+                                                                        <button onClick={() => copyToClipboard(note.jawabTugas)} className="text-rose-400 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>
+                                                                    </div>
+                                                                    <div className="text-sm mt-2 text-slate-700" dangerouslySetInnerHTML={{__html: linkify(note.jawabTugas)}}></div>
+                                                                </div>}
+                                                            </div>
+                                                            
+                                                            {/* CATATAN + COPY */}
+                                                            {note.catatan && <div>
+                                                                <div className="flex justify-between items-center mb-2">
+                                                                    <label className="text-[9px] font-black text-amber-500 uppercase">Catatan Tambahan:</label>
+                                                                    <button onClick={() => copyToClipboard(note.catatan)} className="text-amber-500 hover:text-amber-600 bg-amber-50 border border-amber-100 hover:bg-amber-100 px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>
+                                                                </div>
+                                                                <div className="text-sm mt-2 text-slate-700 bg-amber-50/50 p-4 rounded-xl border border-amber-100" dangerouslySetInnerHTML={{__html: linkify(note.catatan)}}></div>
+                                                            </div>}
+                                                            
+                                                            {note.attachments && note.attachments.length > 0 && (
+                                                                <div className="pt-4 border-t border-slate-100">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block">Lampiran File:</label>
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        {note.attachments.map(file => (
+                                                                            <a key={file.id} href={file.data} download={file.name} className="flex items-center gap-2 text-xs bg-slate-100 px-3 py-2 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors font-medium text-slate-600">
+                                                                                <i data-lucide="paperclip" className="w-3 h-3"></i> {file.name}
+                                                                            </a>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </details>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+        window.addEventListener('click', () => setTimeout(() => lucide.createIcons(), 50));
+    </script>
+</body>
+</html>
