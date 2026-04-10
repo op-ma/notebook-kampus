@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CampusNotes Pro v5.3</title>
     <meta name="theme-color" content="#6366f1">
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="logo.svg">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-	<link rel="icon" type="image/svg+xml" href="logo.svg">
-	<link rel="apple-touch-icon" href="logo.svg">
 
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; color: #1e293b; }
@@ -33,11 +35,9 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
-        // --- FITUR BARU: COPY TO CLIPBOARD ---
         const copyToClipboard = (htmlContent) => {
             const tempDiv = document.createElement("div");
             tempDiv.innerHTML = htmlContent;
-            // Mengambil teks murni tanpa tag HTML (seperti <b>, <ul>, dll)
             const plainText = tempDiv.textContent || tempDiv.innerText || "";
             navigator.clipboard.writeText(plainText).then(() => {
                 alert("Teks berhasil disalin ke clipboard!");
@@ -47,10 +47,8 @@
             });
         };
 
-        // --- FITUR BARU: AUTO LINKIFY ---
         const linkify = (text) => {
             if (!text) return "";
-            // Regex untuk mendeteksi URL (mengabaikan yang sudah berada di dalam tag href)
             const urlRegex = /(?<!href=["'])(https?:\/\/[^\s<]+)/g;
             return text.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-indigo-600 font-bold underline hover:text-indigo-800 transition-colors">$1</a>');
         };
@@ -87,7 +85,6 @@
                 <div className="mb-6">
                     <div className="flex justify-between items-center mb-1 ml-1">
                         <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">{label}</label>
-                        {/* Tombol Copy di Editor (Opsional tapi membantu saat input) */}
                         {value && <button type="button" onClick={() => copyToClipboard(value)} className="text-[9px] text-indigo-500 hover:text-indigo-700 font-bold flex items-center gap-1"><i data-lucide="copy" className="w-3 h-3"></i> Salin</button>}
                     </div>
                     <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm focus-within:ring-4 focus-within:ring-indigo-50">
@@ -96,7 +93,6 @@
                             <button type="button" onClick={() => exec('insertOrderedList')} className="p-2 hover:bg-white rounded-lg border text-slate-600" title="Number List"><i data-lucide="list-ordered" className="w-4 h-4"></i></button>
                             <button type="button" onClick={() => exec('bold')} className="p-2 hover:bg-white rounded-lg border text-slate-600" title="Bold"><i data-lucide="bold" className="w-4 h-4"></i></button>
                             <div className="w-px bg-slate-200 mx-1 my-1"></div>
-                            {/* Tombol Link Manual */}
                             <button type="button" onClick={insertLink} className="p-2 hover:bg-white rounded-lg border text-indigo-500 border-indigo-100 hover:border-indigo-300" title="Masukkan Link"><i data-lucide="link" className="w-4 h-4"></i></button>
                         </div>
                         <div 
@@ -203,6 +199,7 @@
                     updated = notes.map(n => n.id === editingId ? {...formData, id: editingId} : n);
                     setEditingId(null);
                 } else {
+                    // Catatan baru tetap ditambahkan, pengurutan dilakukan saat render
                     updated = [{...formData, id: Date.now()}, ...notes];
                 }
                 
@@ -240,8 +237,12 @@
                 }
             };
 
+            // PENGURUTAN: Dari yang paling pertama di input
             const groupedData = useMemo(() => {
-                return notes.reduce((acc, note) => {
+                // Urutkan berdasarkan id terkecil (terlama) ke terbesar (terbaru)
+                const sortedNotes = [...notes].sort((a, b) => a.id - b.id);
+                
+                return sortedNotes.reduce((acc, note) => {
                     const key = `${note.namaMK} | ${note.judulModul}`;
                     if (!acc[key]) acc[key] = [];
                     acc[key].push(note);
@@ -332,7 +333,7 @@
                             </div>
 
                             <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-2xl active:scale-[0.98] transition-all">
-                                {editingId ? 'Simpan Perubahan' : 'Simpan'}
+                                {editingId ? 'Simpan Perubahan' : 'Simpan & Tambah KB Lain'}
                             </button>
                         </form>
                     ) : (
@@ -383,7 +384,6 @@
                                                         </summary>
                                                         <div className="mt-6 pt-6 border-t border-dashed border-slate-200 space-y-6">
                                                             
-                                                            {/* RANGKUMAN + COPY */}
                                                             {note.rangkuman && <div>
                                                                 <div className="flex justify-between items-center mb-2">
                                                                     <label className="text-[9px] font-black text-slate-400 uppercase">Rangkuman:</label>
@@ -392,7 +392,6 @@
                                                                 <div className="text-sm mt-2 text-slate-700 bg-slate-50 p-4 rounded-xl" dangerouslySetInnerHTML={{__html: linkify(note.rangkuman)}}></div>
                                                             </div>}
                                                             
-                                                            {/* DISKUSI + COPY */}
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                                 {note.soalDiskusi && <div>
                                                                     <div className="flex justify-between items-center mb-2">
@@ -411,7 +410,6 @@
                                                                 </div>}
                                                             </div>
 
-                                                            {/* TUGAS + COPY */}
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
                                                                 {note.soalTugas && <div>
                                                                     <div className="flex justify-between items-center mb-2">
@@ -430,7 +428,6 @@
                                                                 </div>}
                                                             </div>
                                                             
-                                                            {/* CATATAN + COPY */}
                                                             {note.catatan && <div>
                                                                 <div className="flex justify-between items-center mb-2">
                                                                     <label className="text-[9px] font-black text-amber-500 uppercase">Catatan Tambahan:</label>
@@ -469,6 +466,15 @@
         root.render(<App />);
 
         window.addEventListener('click', () => setTimeout(() => lucide.createIcons(), 50));
+        
+        // Mendaftarkan Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => console.log('Service Worker terdaftar!', reg.scope))
+                    .catch((err) => console.log('Service Worker gagal:', err));
+            });
+        }
     </script>
 </body>
 </html>
