@@ -509,14 +509,15 @@
 
         window.addEventListener('click', () => setTimeout(() => lucide.createIcons(), 50));
         
-// Mendaftarkan Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/notebook-kampus/sw.js')
-                    .then((reg) => console.log('Service Worker terdaftar!', reg.scope))
-                    .catch((err) => console.log('Service Worker gagal:', err));
-            });
-        }
-    </script>
+// Mendaftarkan Service Worker (Revisi Path)
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            // Gunakan './sw.js' agar otomatis menyesuaikan dengan sub-folder GitHub Pages
+            navigator.serviceWorker.register('./sw.js')
+                .then((reg) => console.log('Service Worker terdaftar di scope:', reg.scope))
+                .catch((err) => console.error('Service Worker gagal mendaftar:', err));
+        });
+    }
+</script>
 </body>
 </html>
