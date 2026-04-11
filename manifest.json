@@ -1,8 +1,8 @@
 {
   "name": "CampusNotes Pro v5.4",
   "short_name": "CampusNotes",
-  "start_url": ".",
-  "scope": ".",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#6366f1",
