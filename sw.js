@@ -1,4 +1,4 @@
-const CACHE_NAME = 'campusnotes-v1';
+const CACHE_NAME = 'campusnotes-cache-v5.5'; // Ubah angka versinya di sini
 const urlsToCache = [
   './index.html',
   './manifest.json'
